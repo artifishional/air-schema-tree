@@ -1,0 +1,134 @@
+<unit>
+
+    <style>
+
+        line {
+            stroke: white;
+            stroke-width: 1;
+        }
+
+        body {
+            overflow: hidden;
+            padding: 0;
+            margin: 0;
+            background-color: #040a1b;
+        }
+
+        div {
+            background-color: crimson;
+            width: 10px;
+            height: 10px;
+        }
+
+        .model {
+            fill: #0066CC;
+        }
+
+        .model text {
+            stroke: none;
+            font-size: 20px;
+            font-family: Verdana, sans-serif;
+            fill: white;
+            dominant-baseline: middle;
+        }
+
+    </style>
+
+    <stream-source>
+
+        import { stream } from "m2"
+        import { sort } from "nr-graph"
+        import Parser from "../parser"
+
+        export default ( { schema } ) => stream( (emt, {sweep}) => {
+
+            sweep.add(schema.get("../@$").at( (root) => {
+
+                const graph = new Parser().parseData(root);
+                const units = sort({ graph });
+
+                emt([{
+                    units,
+                    lines: units.reduce( (acc, { parentId, id, x, y }) => {
+                        if(parentId) {
+                            const { x: x2, y: y2 } = units.find( ({ id }) => id === parentId );
+                            acc.push( { id, x1: x, y1: y, x2, y2 } );
+                        }
+                        return acc;
+                    }, [ ])
+                }]);
+
+            } ));
+
+        } );
+
+    </stream-source>
+
+    <view-source>
+
+        import svgPanZoom from "svg-pan-zoom";
+        import { stream } from "m2"
+
+        export default ({ targets: [{ node: svg }], source }) => {
+            svg.setAttribute("width", window.screen.width);
+            svg.setAttribute("height", window.screen.height);
+            return stream( (emt, { sweep, over }) => {
+                let instance = null;
+                const observer = new MutationObserver( () => {
+                    if(!instance && document.contains(svg)) {
+                        instance = svgPanZoom(svg, {
+                            refreshRate: "auto",
+                            viewportSelector: "g",
+                            zoomScaleSensitivity: 0.3,
+                            fit: 1
+                        });
+                    }
+                } );
+                observer.observe( document, { childList: true, subtree: true } );
+                sweep.add( () => {
+                    if(instance) {
+                        observer.disconnect();
+                        instance.destroy();
+                        instance = null;
+                    }
+                } );
+                over.add(source.on( emt ));
+            } );
+        }
+
+    </view-source>
+
+    <svg>
+
+        <g>
+
+            <unit kit = (lines){id}>
+                <keyframe>
+                    <key prop = {x1:(x1),y1:(y1),x2:(x2),y2:(y2)}></key>
+                </keyframe>
+                <line></line>
+            </unit>
+
+            <unit kit = (units){id}>
+
+                <keyframe>
+                    <key prop = {translateX:(x),translateY:(y)}></key>
+                </keyframe>
+                <g class = model>
+                    <unit>
+                        <keyframe>
+                            <key prop = {scale:(r)/20}></key>
+                        </keyframe>
+                        <ellipse rx = 20 ry = 20></ellipse>
+                    </unit>
+                    <text text-anchor = middle>
+                        <unit>{(id)}</unit>
+                    </text>
+                </g>
+            </unit>
+
+        </g>
+
+    </svg>
+
+</unit>
