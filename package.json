@@ -20,7 +20,8 @@
     "air-m2": "https://github.com/artifishional/air-m2.git#v2-ref",
     "air-schema": "https://github.com/artifishional/air-schema.git#v2-ref",
     "nr-graph": "git+https://github.com/NickRimer03/nr-graph.git",
-    "svg-pan-zoom": "^3.6.0"
+    "svg-pan-zoom": "^3.6.0",
+    "doctrine": "^3.0.0"
   },
   "devDependencies": {
     "air-application": "^2.0.1"
