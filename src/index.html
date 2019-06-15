@@ -1,140 +1,306 @@
 <unit>
+  <stream-source>
+    import { stream, ModelVertex } from "m2";
+    import { sort } from "nr-graph";
+    import Parser from "../parser";
 
-    <style>
+    export default ({ schema }) =>
+      stream((emt, { sweep, hook }) => {
+        let state = {
+          units: [{ id: "$", x: 0, y: 0 }],
+          lines: [],
+          entities: [],
+          currentSource: { actions: [], requests: [] },
+          sources: {},
+          wall: false
+        };
 
-        line {
-            stroke: white;
-            stroke-width: 1;
-        }
+        emt([state]);
 
-        body {
-            overflow: hidden;
-            padding: 0;
-            margin: 0;
-            background-color: #040a1b;
-        }
+        hook.add(({ action, signature }) => {
+          if (action === "node-click") {
+            emt([
+              (state = {
+                ...state,
+                currentSource: state.sources[signature.id],
+                wall: true
+              })
+            ]);
+          } else if (action === "wall-click") {
+            emt([(state = { ...state, wall: false })]);
+          }
+        });
 
-        div {
-            background-color: crimson;
-            width: 10px;
-            height: 10px;
-        }
+        sweep.add(
+          schema.get("@$").at(root => {
+            ModelVertex.observe(root, data => {
+              const graph = new Parser().parseData(root);
+              const units = sort({ graph });
+              const sources = graph.nodes.reduce((acc, { name, source }) => {
+                acc[name] = source;
+                return acc;
+              }, {});
 
-        .model {
-            fill: #0066CC;
-        }
+              emt([
+                (state = {
+                  ...state,
+                  units,
+                  sources,
+                  entities: units.reduce((acc, { id, x, y, r }) => {
+                    acc.push({
+                      id,
+                      x: x + 0.75 * r,
+                      y: y - 0.75 * r,
+                      ents: graph.getNode(id).entities
+                    });
+                    return acc;
+                  }, []),
+                  lines: units.reduce((acc, { parentId, id, x, y }) => {
+                    if (parentId) {
+                      const { x: x2, y: y2 } = units.find(({ id }) => id === parentId);
+                      acc.push({ id, x1: x, y1: y, x2, y2 });
+                    }
+                    return acc;
+                  }, [])
+                })
+              ]);
+            });
+          })
+        );
+      });
+  </stream-source>
 
-        .model text {
-            stroke: none;
-            font-size: 20px;
+  <unit>
+    <style type="text/scss">
+      svg {
+        user-select: none;
+      }
+
+      line {
+        stroke: white;
+        stroke-width: 1;
+      }
+
+      body {
+        overflow: hidden;
+        padding: 0;
+        margin: 0;
+        background-color: #040a1b;
+      }
+
+      .model {
+        fill: #0066cc;
+
+        &-entities {
+          fill: #ff3333;
+
+          text {
             font-family: Verdana, sans-serif;
-            fill: white;
+            font-size: 8px;
+            fill: yellow;
+            stroke: none;
             dominant-baseline: middle;
+          }
         }
 
+        text {
+          stroke: none;
+          font-size: 1px;
+          font-family: Verdana, sans-serif;
+          fill: white;
+          dominant-baseline: middle;
+        }
+      }
+
+      .wall {
+        stroke: none;
+        fill: rgba(0, 0, 0, 0.7);
+      }
     </style>
 
-    <stream-source>
-
-        import { stream, ModelVertex } from "m2"
-        import { sort } from "nr-graph"
-        import Parser from "../parser"
-
-        export default ( { schema } ) => stream( (emt, {sweep}) => {
-
-            sweep.add(schema.get("@$").at( (root) => {
-
-                ModelVertex.observe( root, (data) => {
-
-                    const graph = new Parser().parseData(root);
-                    const units = sort({ graph });
-
-                    emt([{
-                        units,
-                        lines: units.reduce( (acc, { parentId, id, x, y }) => {
-                            if(parentId) {
-                                const { x: x2, y: y2 } = units.find( ({ id }) => id === parentId );
-                                acc.push( { id, x1: x, y1: y, x2, y2 } );
-                            }
-                            return acc;
-                        }, [ ])
-                    }]);
-
-                } );
-
-                emt([{ units: [ { id: "$", x: 0, y: 0 } ], lines: [] }]);
-
-            } ));
-
-        } ).log();
-
-    </stream-source>
-
     <view-source>
+      import svgPanZoom from "svg-pan-zoom";
+      import { stream } from "m2";
 
-        import svgPanZoom from "svg-pan-zoom";
-        import { stream } from "m2"
+      export default ({ targets: [{ node: svg }], source }) => {
+        svg.setAttribute("width", window.screen.width);
+        svg.setAttribute("height", window.screen.height);
+        return stream((emt, { hook, sweep, over }) => {
+          let instance = null;
+          const observer = new MutationObserver(() => {
+            if (!instance && document.contains(svg)) {
+              instance = svgPanZoom(svg, {
+                refreshRate: "auto",
+                viewportSelector: "g",
+                zoomScaleSensitivity: 0.25,
+                dblClickZoomEnabled: false,
+                fit: true,
+                minZoom: 0.25,
+                maxZoom: 3
+              });
+            }
+          });
+          observer.observe(document, { childList: true, subtree: true });
 
-        export default ({ targets: [{ node: svg }], source }) => {
-            svg.setAttribute("width", window.screen.width);
-            svg.setAttribute("height", window.screen.height);
-            return stream( (emt, { sweep, over }) => {
-                let instance = null;
-                const observer = new MutationObserver( () => {
-                    if(!instance && document.contains(svg)) {
-                        instance = svgPanZoom(svg, {
-                            refreshRate: "auto",
-                            viewportSelector: "g",
-                            zoomScaleSensitivity: 0.3,
-                            fit: 1
-                        });
-                    }
-                } );
-                observer.observe( document, { childList: true, subtree: true } );
-                sweep.add( () => {
-                    if(instance) {
-                        observer.disconnect();
-                        instance.destroy();
-                        instance = null;
-                    }
-                } );
-                over.add(source.on( emt ));
-            } );
-        }
-
+          sweep.add(() => {
+            if (instance) {
+              observer.disconnect();
+              instance.destroy();
+              instance = null;
+            }
+          });
+          over.add(source.on(emt));
+        });
+      };
     </view-source>
 
     <svg>
+      <g>
+        <unit kit="(lines){id}">
+          <keyframe>
+            <key prop="{ x1: (x1), y1: (y1), x2: (x2), y2: (y2) }"></key>
+          </keyframe>
+          <line></line>
+        </unit>
 
-        <g>
-
-            <unit kit = (lines){id}>
-                <keyframe>
-                    <key prop = {x1:(x1),y1:(y1),x2:(x2),y2:(y2)}></key>
-                </keyframe>
-                <line></line>
+        <unit kit="(units){id}" onclick="req('node-click', { signature })">
+          <keyframe>
+            <key prop="{ translateX: (x), translateY: (y) }"></key>
+          </keyframe>
+          <g class="model">
+            <unit>
+              <keyframe>
+                <key prop="{ scale: (r) }"></key>
+              </keyframe>
+              <circle r="1"></circle>
             </unit>
-
-            <unit kit = (units){id}>
-
-                <keyframe>
-                    <key prop = {translateX:(x),translateY:(y)}></key>
-                </keyframe>
-                <g class = model>
-                    <unit>
-                        <keyframe>
-                            <key prop = {scale:(r)/20}></key>
-                        </keyframe>
-                        <ellipse rx = 20 ry = 20></ellipse>
-                    </unit>
-                    <text text-anchor = middle>
-                        <unit>{(id)}</unit>
-                    </text>
-                </g>
+            <unit>
+              <keyframe>
+                <key prop="{ scale: (r) / 2 }"></key>
+              </keyframe>
+              <text text-anchor="middle">
+                <unit>{(id)}</unit>
+              </text>
             </unit>
+          </g>
+        </unit>
 
-        </g>
+        <unit kit="(entities){id}">
+          <keyframe>
+            <key prop="{ translateX: (x), translateY: (y) }"></key>
+          </keyframe>
+          <g class="model-entities">
+            <unit>
+              <circle r="10"></circle>
+            </unit>
+            <text text-anchor="middle">
+              <unit>{(ents)}</unit>
+            </text>
+          </g>
+        </unit>
+      </g>
 
+      <unit tee="{ wall }" onclick="req('wall-click')">
+        <rect class="wall" x="0" y="0" width="100%" height="100%"></rect>
+      </unit>
     </svg>
+  </unit>
 
+  <unit tee="{ wall }">
+    <style type="text/scss">
+      pre {
+        margin: 1em 0 0.5em;
+      }
+
+      #left-panel {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        padding: 15px;
+        font-family: Verdana, sans-serif;
+        overflow: auto;
+        white-space: nowrap;
+        color: ivory;
+        background-color: rgba(138, 43, 226, 0.4);
+      }
+
+      #name {
+        font-size: 50px;
+        color: #ff0097;
+      }
+
+      .title {
+        font-size: 16px;
+        color: #ff8f00;
+
+        &.section {
+          margin: 15px 0 10px;
+          font-size: 30px;
+          color: #75e1fb;
+        }
+      }
+
+      .description {
+        color: #0f0;
+      }
+
+      .format {
+        color: #ff0;
+      }
+
+      .underground {
+        margin-bottom: 10px;
+        padding: 5px;
+        background-color: rgba(0, 255, 100, 0.3);
+
+        &:last-child {
+          margin-bottom: 20px;
+        }
+      }
+    </style>
+    <keyframe prop="{ duration: 1.25, easing: 'easeOutQuint' }">
+      <key offset="0" prop="{ width: '0%' }"></key>
+      <key offset="1" prop="{ width: '60%' }"></key>
+    </keyframe>
+    <div id="left-panel">
+      <div id="name">
+        <unit>{(currentSource.name)}</unit>
+      </div>
+
+      <unit tee="{ currentSource: { actions: { length } } }">
+        <div class="title section">Actions</div>
+      </unit>
+      <unit kit="(currentSource.actions){id}">
+        <div class="underground">
+          <div class="title">
+            <unit>{(title)}</unit>
+          </div>
+          <div class="description">
+            <pre><unit>{(description)}</unit></pre>
+          </div>
+          <div class="format">
+            <pre><unit>{(format)}</unit></pre>
+          </div>
+        </div>
+      </unit>
+
+      <unit tee="{ currentSource: { requests: { length } } }">
+        <div class="title section">Requests</div>
+      </unit>
+      <unit kit="(currentSource.requests){id}">
+        <div class="underground">
+          <div class="title">
+            <unit>{(title)}</unit>
+          </div>
+          <div class="description">
+            <pre><unit>{(description)}</unit></pre>
+          </div>
+          <div class="format">
+            <pre><unit>{(format)}</unit></pre>
+          </div>
+        </div>
+      </unit>
+    </div>
+  </unit>
 </unit>
