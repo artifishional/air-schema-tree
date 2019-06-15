@@ -1,4 +1,43 @@
 <unit>
+
+  <unit key = tap-handler >
+
+    <view-source>
+
+      import { stream } from "m2";
+
+      class EventHandler {
+        constructor() {
+          this.started = {x: 0, y: 0};
+        }
+        handleEvent(event) {
+          if(event.type === "pointerdown") {
+            this.started = { x: event.x, y: event.y };
+          }
+          else if(event.type === "pointerup") {
+            if(this.started.x === event.x && this.started.y === event.y) {
+              event.currentTarget.dispatchEvent(new CustomEvent("tap"));
+            }
+          }
+        }
+      }
+
+      export default ({ targets, source }) =>
+        stream((emt, { sweep, over }) => {
+          const handler = new EventHandler();
+          targets.map( ({ node }) => node.addEventListener("pointerup", handler) );
+          targets.map( ({ node }) => node.addEventListener("pointerdown", handler) );
+          sweep.add(() => {
+            targets.map( ({ node }) => node.removeEventListener("pointerup", handler) );
+            targets.map( ({ node }) => node.removeEventListener("pointerdown", handler) );
+          });
+          over.add(source.on(emt));
+        });
+
+    </view-source>
+
+  </unit>
+
   <stream-source>
     import { stream, ModelVertex } from "m2";
     import { sort } from "nr-graph";
@@ -6,6 +45,7 @@
 
     export default ({ schema }) =>
       stream((emt, { sweep, hook }) => {
+
         let state = {
           units: [{ id: "$", x: 0, y: 0 }],
           lines: [],
@@ -19,6 +59,7 @@
 
         hook.add(({ action, signature }) => {
           if (action === "node-click") {
+            emt.kf();
             emt([
               (state = {
                 ...state,
@@ -27,7 +68,8 @@
               })
             ]);
           } else if (action === "wall-click") {
-            emt([(state = { ...state, wall: false })]);
+            emt.kf();
+            emt([(state = { ...state, currentSource: { actions: [], requests: [] }, wall: false })]);
           }
         });
 
@@ -41,20 +83,16 @@
                 return acc;
               }, {});
 
+              emt.kf();
               emt([
                 (state = {
                   ...state,
-                  units,
+                  units: units.map( ( { id, ...unit } ) => ({
+                    id,
+                    ...unit,
+                    entities: graph.getNode(id).entities,
+                  }) ),
                   sources,
-                  entities: units.reduce((acc, { id, x, y, r }) => {
-                    acc.push({
-                      id,
-                      x: x + 0.75 * r,
-                      y: y - 0.75 * r,
-                      ents: graph.getNode(id).entities
-                    });
-                    return acc;
-                  }, []),
                   lines: units.reduce((acc, { parentId, id, x, y }) => {
                     if (parentId) {
                       const { x: x2, y: y2 } = units.find(({ id }) => id === parentId);
@@ -162,8 +200,7 @@
           </keyframe>
           <line></line>
         </unit>
-
-        <unit kit="(units){id}" onclick="req('node-click', { signature })">
+        <unit kit="(units){id}" use = @tap-handler on:tap="req('node-click', { signature })">
           <keyframe>
             <key prop="{ translateX: (x), translateY: (y) }"></key>
           </keyframe>
@@ -172,34 +209,35 @@
               <keyframe>
                 <key prop="{ scale: (r) }"></key>
               </keyframe>
-              <circle r="1"></circle>
+              <g>
+                <circle r="1"></circle>
+                <g transform="scale(0.5)">
+                  <text text-anchor="middle">
+                    <unit>{(id)}</unit>
+                  </text>
+                </g>
+                <g transform="translate(0.7,0.7)">
+                  <unit>
+                    <style>
+                      :scope {
+                        stroke-width: 0.02;
+                        stroke: #fff;
+                        fill: #0066cc;
+                      }
+                    </style>
+                    <circle r="0.4"></circle>
+                  </unit>
+                  <g transform="scale(0.3)">
+                    <text text-anchor="middle">
+                      <unit>{(entities)}</unit>
+                    </text>
+                  </g>
+                </g>
+              </g>
             </unit>
-            <unit>
-              <keyframe>
-                <key prop="{ scale: (r) / 2 }"></key>
-              </keyframe>
-              <text text-anchor="middle">
-                <unit>{(id)}</unit>
-              </text>
-            </unit>
-          </g>
-        </unit>
-
-        <unit kit="(entities){id}">
-          <keyframe>
-            <key prop="{ translateX: (x), translateY: (y) }"></key>
-          </keyframe>
-          <g class="model-entities">
-            <unit>
-              <circle r="10"></circle>
-            </unit>
-            <text text-anchor="middle">
-              <unit>{(ents)}</unit>
-            </text>
           </g>
         </unit>
       </g>
-
       <unit tee="{ wall }" onclick="req('wall-click')">
         <rect class="wall" x="0" y="0" width="100%" height="100%"></rect>
       </unit>
@@ -208,6 +246,28 @@
 
   <unit tee="{ wall }">
     <style type="text/scss">
+
+      :scope {
+        --colors-first-main-type: #0066cc;
+        --colors-second-type: mediumvioletred;
+      }
+
+      ::-webkit-scrollbar {
+        width: 5px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: none;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--colors-second-type);
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--colors-second-type);
+      }
+
       pre {
         margin: 1em 0 0.5em;
       }
@@ -222,7 +282,7 @@
         overflow: auto;
         white-space: nowrap;
         color: ivory;
-        background-color: rgba(138, 43, 226, 0.4);
+        background-color: var(--colors-first-main-type);
       }
 
       #name {
@@ -259,9 +319,9 @@
         }
       }
     </style>
-    <keyframe prop="{ duration: 1.25, easing: 'easeOutQuint' }">
+    <keyframe name = fade-in prop="{ duration: 0.1, easing: 'easeOutQuad' }">
       <key offset="0" prop="{ width: '0%' }"></key>
-      <key offset="1" prop="{ width: '60%' }"></key>
+      <key offset="1" prop="{ width: '40%' }"></key>
     </keyframe>
     <div id="left-panel">
       <div id="name">
@@ -297,7 +357,7 @@
             <pre><unit>{(description)}</unit></pre>
           </div>
           <div class="format">
-            <pre><unit>{(format)}</unit></pre>
+            <pre label = pre><unit>{(format)}</unit></pre>
           </div>
         </div>
       </unit>
