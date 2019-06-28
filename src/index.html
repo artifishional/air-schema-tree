@@ -1,6 +1,6 @@
 <unit>
 
-  <unit key = tap-handler >
+  <unit key="tap-handler">
 
     <view-source>
 
@@ -41,13 +41,13 @@
   <stream-source>
     import { stream, ModelVertex } from "m2";
     import { sort } from "nr-graph";
-    import Parser from "../parser";
+    import Graph from "../parser";
 
     export default ({ schema }) =>
       stream((emt, { sweep, hook }) => {
 
         let state = {
-          units: [{ id: "$", x: 0, y: 0 }],
+          units: [{ id: "$smth_wrong$", x: 0, y: 0 }],
           lines: [],
           entities: [],
           currentSource: { actions: [], requests: [] },
@@ -59,14 +59,183 @@
 
         hook.add(({ action, signature }) => {
           if (action === "node-click") {
-            emt.kf();
-            emt([
-              (state = {
+            // *************************
+            let { data, current, tree, edges, lastSorted } = state.sortData;
+            const graph = new Graph();
+            const newTree = graph.parseData(data);
+
+            let parentName = null;
+            const item = newTree.nodes.find(({ acid }) => acid === signature.id);
+            const thisName = item.name;
+
+            if (item.acid !== current) {
+              let parent;
+              current = item.acid;
+              if (item.parent !== null) {
+                item.children.unshift(item.parent);
+                parent = newTree.nodes.find(({ acid }) => acid === item.parent);
+                parent.children.length = 0;
+                parentName = parent.name;
+              }
+
+              // const animDuration = 500;
+              const newSort = sort(newTree, item, !!parent);
+
+              // const nodesAnimation = tree.nodes.reduce((acc, { name }) => {
+              //   let x, y, r, o;
+              //   const a = lastSorted.find(({ name: n }) => n === name);
+              //   if (a) {
+              //     [x, y, r, o] = [a.x, a.y, a.r, a.o];
+              //   } else {
+              //     const b = lastSorted.find(({ name }) => name === thisName);
+              //     [x, y, r, o] = [b.x, b.y, b.r, 0];
+              //   }
+              //   const node = document.querySelector(`g[data-name="${name}"]`);
+              //   const exist = newSort.find(({ name: n }) => n === name);
+              //   if (exist) {
+              //     acc.push(
+              //       {
+              //         targets: node,
+              //         opacity: [o, exist.o],
+              //         easing: "linear",
+              //         duration: animDuration,
+              //         begin: () => {
+              //           node.style.display = "block";
+              //         }
+              //       },
+              //       {
+              //         targets: node.querySelector("circle"),
+              //         r: [r, exist.r],
+              //         cx: [x, exist.x],
+              //         cy: [y, exist.y],
+              //         easing: "linear",
+              //         duration: animDuration,
+              //         fill: name === parentName ? "rgb(100, 149, 237)" : "rgb(226, 183, 47)",
+              //         stroke: name === parentName ? "rgb(30, 144, 255)" : "rgb(226, 115, 78)"
+              //       },
+              //       {
+              //         targets: node.querySelector("text"),
+              //         x: [x, exist.x],
+              //         y: [y, exist.y],
+              //         easing: "linear",
+              //         duration: animDuration,
+              //         fill: name === parentName ? "rgb(173, 216, 230)" : "rgb(210, 105, 30)"
+              //       }
+              //     );
+              //     return acc;
+              //   }
+              //
+              //   const parent = newSort.find(({ name }) => name === parentName);
+              //   acc.push(
+              //     {
+              //       targets: node,
+              //       opacity: 0,
+              //       easing: "linear",
+              //       duration: animDuration,
+              //       complete: () => {
+              //         node.style.display = "none";
+              //       }
+              //     },
+              //     {
+              //       targets: node.querySelector("circle"),
+              //       r: [r, parent.r],
+              //       cx: [x, parent.x],
+              //       cy: [y, parent.y],
+              //       easing: "linear",
+              //       duration: animDuration
+              //     },
+              //     {
+              //       targets: node.querySelector("text"),
+              //       x: [x, parent.x],
+              //       y: [y, parent.y],
+              //       easing: "linear",
+              //       duration: animDuration
+              //     }
+              //   );
+              //   return acc;
+              // }, []);
+
+              // const edgesAnimation = edges.reduce((acc, { p1: { name: name1 }, p2: { name: name2 } }) => {
+              //   let x1, y1, x2, y2, o;
+              //   const a1 = lastSorted.find(({ name }) => name === name1);
+              //   const a2 = lastSorted.find(({ name }) => name === name2);
+              //   if (a1 && a2) {
+              //     [x1, y1, x2, y2, o] = [a1.x, a1.y, a2.x, a2.y, a2.o];
+              //   } else {
+              //     const b = lastSorted.find(({ name }) => name === thisName);
+              //     [x1, y1, x2, y2, o] = [b.x, b.y, b.x, b.y, 0];
+              //   }
+              //   const edge = document.querySelector(`line[data-name="${name1}-${name2}"]`);
+              //   const point1 = newSort.find(({ name }) => name === name1);
+              //   const point2 = newSort.find(({ name }) => name === name2);
+              //   if (point1 && point2) {
+              //     acc.push({
+              //       targets: edge,
+              //       opacity: [o, point1.o],
+              //       x1: [x1, point1.x],
+              //       y1: [y1, point1.y],
+              //       x2: [x2, point2.x],
+              //       y2: [y2, point2.y],
+              //       easing: "linear",
+              //       duration: animDuration,
+              //       begin: () => {
+              //         edge.style.display = "block";
+              //       }
+              //     });
+              //     return acc;
+              //   }
+              //
+              //   const parent = newSort.find(({ name }) => name === parentName);
+              //   acc.push({
+              //     targets: edge,
+              //     opacity: 0,
+              //     x1: [x1, parent.x],
+              //     y1: [y1, parent.y],
+              //     x2: [x2, parent.x],
+              //     y2: [y2, parent.y],
+              //     easing: "linear",
+              //     duration: animDuration,
+              //     complete: () => {
+              //       edge.style.display = "none";
+              //     }
+              //   });
+              //   return acc;
+              // }, []);
+
+              // const promises = [];
+              // [].concat(nodesAnimation, edgesAnimation).forEach(anim => {
+              //   promises.push(anime(anim).finished);
+              // });
+              // Promise.all(promises).then(() => {
+              //   canBeClicked = true;
+              // });
+
+              lastSorted = newSort;
+
+              emt.kf();
+              emt([state = {
                 ...state,
-                currentSource: state.sources[signature.id],
-                wall: true
-              })
-            ]);
+                sortData: {
+                  ...state.sortData,
+                  lastSorted,
+                  current
+                },
+                units: newSort.points.map( ( { id, ...unit } ) => ({
+                  id,
+                  ...unit,
+                  entities: graph.getNode(id).entities,
+                }) ),
+                lines: newSort.edges.map(({ p1: { x: x1, y: y1, id: id1, o }, p2: { x: x2, y: y2 } }) => ({ id: id1, x1, y1, x2, y2, o }))
+              }]);
+            }
+            // *************************
+            // emt([
+            //   (state = {
+            //     ...state,
+            //     currentSource: state.sources[signature.id],
+            //     wall: true
+            //   })
+            // ]);
           } else if (action === "wall-click") {
             emt.kf();
             emt([(state = { ...state, currentSource: { actions: [], requests: [] }, wall: false })]);
@@ -76,10 +245,14 @@
         sweep.add(
           schema.get("@$").at(root => {
             ModelVertex.observe(root, data => {
-              const graph = new Parser().parseData(root);
-              const units = sort({ graph });
-              const sources = graph.nodes.reduce((acc, { name, source }) => {
-                acc[name] = source;
+              let current = 1;
+              const graph = new Graph();
+              const tree = graph.parseData(root);
+              const rootPoint = graph.getNode(1);
+              const { points: sorted, edges } = sort(tree, rootPoint);
+              let lastSorted = JSON.parse(JSON.stringify(sorted));
+              const sources = graph.nodes.reduce((acc, { acid, source }) => {
+                acc[acid] = source;
                 return acc;
               }, {});
 
@@ -87,19 +260,20 @@
               emt([
                 (state = {
                   ...state,
-                  units: units.map( ( { id, ...unit } ) => ({
+                  sortData: {
+                    data: root,
+                    tree,
+                    edges,
+                    current,
+                    lastSorted,
+                  },
+                  units: sorted.map( ( { id, ...unit } ) => ({
                     id,
                     ...unit,
                     entities: graph.getNode(id).entities,
                   }) ),
                   sources,
-                  lines: units.reduce((acc, { parentId, id, x, y }) => {
-                    if (parentId) {
-                      const { x: x2, y: y2 } = units.find(({ id }) => id === parentId);
-                      acc.push({ id, x1: x, y1: y, x2, y2 });
-                    }
-                    return acc;
-                  }, [])
+                  lines: edges.map(({ p1: { x: x1, y: y1, id: id1, o }, p2: { x: x2, y: y2 } }) => ({ id: id1, x1, y1, x2, y2, o }))
                 })
               ]);
             });
@@ -196,27 +370,27 @@
       <g>
         <unit kit="(lines){id}">
           <keyframe>
-            <key prop="{ x1: (x1), y1: (y1), x2: (x2), y2: (y2) }"></key>
+            <key prop="{ x1: (x1), y1: (y1), x2: (x2), y2: (y2), opacity: (o) }"></key>
           </keyframe>
           <line></line>
         </unit>
-        <unit kit="(units){id}" use = @tap-handler on:tap="req('node-click', { signature })">
+        <unit kit="(units){id}" use="@tap-handler" on:tap="req('node-click', { signature })">
           <keyframe>
             <key prop="{ translateX: (x), translateY: (y) }"></key>
           </keyframe>
           <g class="model">
             <unit>
               <keyframe>
-                <key prop="{ scale: (r) }"></key>
+                <key prop="{ scale: (r), opacity: (o) }"></key>
               </keyframe>
               <g>
                 <circle r="1"></circle>
                 <g transform="scale(0.5)">
                   <text text-anchor="middle">
-                    <unit>{(id)}</unit>
+                    <unit>{(name)}</unit>
                   </text>
                 </g>
-                <g transform="translate(0.7,0.7)">
+                <g transform="translate(0.7, 0.7)">
                   <unit>
                     <style>
                       :scope {
@@ -319,7 +493,7 @@
         }
       }
     </style>
-    <keyframe name = fade-in prop="{ duration: 0.1, easing: 'easeOutQuad' }">
+    <keyframe name="fade-in" prop="{ duration: 0.1, easing: 'easeOutQuad' }">
       <key offset="0" prop="{ width: '0%' }"></key>
       <key offset="1" prop="{ width: '40%' }"></key>
     </keyframe>
@@ -357,7 +531,7 @@
             <pre><unit>{(description)}</unit></pre>
           </div>
           <div class="format">
-            <pre label = pre><unit>{(format)}</unit></pre>
+            <pre label="pre"><unit>{(format)}</unit></pre>
           </div>
         </div>
       </unit>
