@@ -41,7 +41,7 @@
   <stream-source>
     import { stream, ModelVertex } from "m2";
     import { sort } from "nr-graph";
-    import Graph from "../parser";
+    import Graph from "./parser";
 
     export default ({ schema }) =>
       stream((emt, { sweep, hook }) => {
@@ -243,7 +243,7 @@
         });
 
         sweep.add(
-          schema.get("@$").at(root => {
+          schema.get("@$").then(root => {
             ModelVertex.observe(root, data => {
               let current = 1;
               const graph = new Graph();
