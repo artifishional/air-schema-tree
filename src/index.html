@@ -42,6 +42,7 @@
     import { stream, ModelVertex } from "m2";
     import { sort } from "nr-graph";
     import Graph from "./parser";
+    const { min, max } = Math;
 
     export default ({ schema }) =>
       stream((emt, { sweep, hook }) => {
@@ -256,10 +257,16 @@
                 return acc;
               }, {});
 
+              const frame = sorted
+                      .reduce( ({ x1, y1, x2, y2 }, { x, y }) => ({
+                            x1: min(x1, x), y1: min(y1, y), x2: max(x2, x), y2: max(y2, y)
+                      }), { x1: 0, y1: 0, x2: 0, y2: 0 } );
+
               emt.kf();
               emt([
                 (state = {
                   ...state,
+                  frame,
                   sortData: {
                     data: root,
                     tree,
@@ -267,7 +274,8 @@
                     current,
                     lastSorted,
                   },
-                  units: sorted.map( ( { id, ...unit } ) => ({
+                  units: sorted.map( ( { id, ...unit }, key ) => ({
+                    prev: state.units[key],
                     id,
                     ...unit,
                     entities: graph.getNode(id).entities,
@@ -279,7 +287,7 @@
             });
           })
         );
-      });
+      }).log();
   </stream-source>
 
   <unit>
@@ -368,19 +376,25 @@
 
     <svg>
       <g>
-        <unit kit="(lines){id}">
+        <unit>
           <keyframe>
+            <key prop="{ x1: (frame.x1), y1: (frame.y1), x2: (frame.x2), y2: (frame.y2), opacity: 0 }"></key>
+          </keyframe>
+          <line x1 = 5 y1 = 5 x2 = 500 y2 = 500></line>
+        </unit>
+        <unit kit="(lines){id}">
+          <keyframe prop = {duration:0.3}>
             <key prop="{ x1: (x1), y1: (y1), x2: (x2), y2: (y2), opacity: (o) }"></key>
           </keyframe>
           <line></line>
         </unit>
         <unit kit="(units){id}" use="@tap-handler" on:tap="req('node-click', { signature })">
-          <keyframe>
+          <keyframe prop = {duration:0.3}>
             <key prop="{ translateX: (x), translateY: (y) }"></key>
           </keyframe>
           <g class="model">
             <unit>
-              <keyframe>
+              <keyframe prop = {duration:0.3}>
                 <key prop="{ scale: (r), opacity: (o) }"></key>
               </keyframe>
               <g>
