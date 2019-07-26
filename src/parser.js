@@ -50,25 +50,27 @@ export default class Graph {
     this.nodes = [];
   }
 
-  parseData(data) {
+  parseData(data, parent) {
     const [, , ...children] = data;
-    this.addNode(data);
-    children.forEach(child => this.parseData(child));
+    this.addNode(data, parent);
+    children.forEach(child => this.parseData(child, data.acid));
 
     return this;
   }
 
-  addNode(data) {
-    const [name, acid, ...children] = data;
+  addNode(data, parent) {
+    const [name, , ...children] = data;
     const {
+      acid,
       entities,
       prop: { source }
     } = data;
 
     this.nodes.push({
-      name,
+      name: JSON.stringify(name).replace(/"/g, ""),
       acid,
-      children: children.map(([name]) => name),
+      parent: parent ? parent : null,
+      children: children.map(({ acid }) => acid),
       entities: entities.length,
       source: parseJsDoc({ source })
     });
@@ -76,19 +78,26 @@ export default class Graph {
     return this;
   }
 
-  getNode(nodeName) {
-    const find = this.nodes.find(({ name }) => name === nodeName);
+  getNode(nodeAcid) {
+    const find = this.nodes.find(({ acid }) => acid === nodeAcid);
 
     return find ? find : null;
   }
 
-  getChildren(nodeName) {
-    const find = this.nodes.find(({ name }) => name === nodeName);
+  getChildren(nodeAcid) {
+    const find = this.nodes.find(({ acid }) => acid === nodeAcid);
 
     return find ? find.children : null;
+  }
+
+  erase() {
+    this.nodes.length = 0;
+
+    return this;
   }
 
   get nodesCount() {
     return this.nodes.length;
   }
 }
+
